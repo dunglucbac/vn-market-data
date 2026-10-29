@@ -495,7 +495,8 @@ def mark_seams_repaired(conn, symbol: str, dates: list[str], band: float) -> Non
 # ── Board (md_board) ─────────────────────────────────────────────────────────
 _BOARD_FIELDS = ("foreign_buy_value", "foreign_sell_value", "foreign_net_value",
                  "ceiling", "floor", "ref_price", "close",
-                 "traded_value", "traded_volume", "vwap")
+                 "traded_value", "traded_volume", "vwap",
+                 "foreign_room", "foreign_total_room")
 
 
 def latest_board(conn, symbol: str, ttl_seconds: float) -> dict | None:
@@ -549,14 +550,16 @@ def insert_board(conn, board: dict[str, dict], source: str) -> str:
         conn.execute(
             """INSERT INTO md_board(symbol, ts, foreign_buy_value, foreign_sell_value,
                    foreign_net_value, ceiling, floor, ref_price, close,
-                   traded_value, traded_volume, vwap, depth, source)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                   traded_value, traded_volume, vwap, depth,
+                   foreign_room, foreign_total_room, source)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(symbol, ts) DO NOTHING""",
             (sym, now, b.get("foreign_buy_value"), b.get("foreign_sell_value"),
              b.get("foreign_net_value"), b.get("ceiling"), b.get("floor"),
              b.get("ref_price"), b.get("close"),
              b.get("traded_value"), b.get("traded_volume"),
-             b.get("vwap"), _depth_in(b), source))
+             b.get("vwap"), _depth_in(b),
+             b.get("foreign_room"), b.get("foreign_total_room"), source))
     conn.commit()
     return now
 

@@ -6,14 +6,14 @@ looks like.
 
 ## This repository is a mirror
 
-`vn-market-data` is developed inside a larger private application and published here by
-`git subtree split`. **The split is one-way.** This repo is a projection of the upstream
+`vn-market-data` is developed inside a larger private application and published here as
+one commit per release. **The publish is one-way.** This repo is a projection of the upstream
 directory; nothing is ever pulled back from it.
 
 The practical consequences:
 
 - **A pull request opened here cannot be merged here.** Not "will not" — the next
-  release regenerates this branch from upstream history and would run straight over the
+  release replaces this branch's files with upstream's and would run straight over the
   merge commit.
 - **A commit pushed here is invisible upstream** and disappears at the next release.
 - **Your commit will not appear in the published history**, even when your change ships.

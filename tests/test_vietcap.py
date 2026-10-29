@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 
-from vn_market_data.sources import http as vmd_http, vietcap
+from vn_market_data.sources import http as vmd_http, vci, vietcap
 from vn_market_data.sources.base import (NotSupported, SourceUnavailable,
                                          SourceUnreachable, _take_units)
 from vn_market_data.sources.vietcap import VietcapSource
@@ -176,6 +176,18 @@ def test_the_board_row_is_normalized_like_the_vnstock_one(wire):
     assert wire.calls[0][1] == {"symbols": ["FPT", "NOSUCH"]}
 
 
+def test_the_board_carries_foreign_room_in_shares_below_zero_kept(wire):
+    """A cut limit leaves foreign holders over it: `currentRoom` goes negative and
+    must stay so, since that sign is what says they can only sell."""
+    wire.on("getList", [_board_item("VEA", currentRoom=-17609933, totalRoom=0),
+                        _board_item("FPT", currentRoom=359232452, totalRoom=840019946),
+                        _board_item("MBB")])
+    board = VietcapSource().get_board(["VEA", "FPT", "MBB"])
+    assert (board["VEA"]["foreign_room"], board["VEA"]["foreign_total_room"]) == (-17609933, 0)
+    assert board["FPT"]["foreign_total_room"] == 840019946
+    assert board["MBB"]["foreign_room"] is None   # not sent = not read, never 0
+
+
 def test_an_auction_price_makes_the_side_unreadable_not_empty(wire):
     item = _board_item("FPT")
     item["bidAsk"]["bidPrices"][0]["price"] = "ATO"
@@ -256,9 +268,9 @@ def _rows(prefix, years, **fields):
 
 def _statement_wire(wire, *, income_titles, ratio=None):
     metrics = {"INCOME_STATEMENT": [{"field": f"isa{n}", "titleEn": t} for n, t in income_titles.items()],
-               "BALANCE_SHEET": [{"field": "bsa1", "titleEn": vietcap._BALANCE["equity"]},
+               "BALANCE_SHEET": [{"field": "bsa1", "titleEn": vci._BALANCE["equity"]},
                                  {"field": "bsa2", "titleEn": "TOTAL ASSETS"}],
-               "CASH_FLOW": [{"field": "cfa1", "titleEn": vietcap._CASHFLOW["capex"]}],
+               "CASH_FLOW": [{"field": "cfa1", "titleEn": vci._CASHFLOW["capex"]}],
                "NOTE": None}
     years = range(2019, 2026)
     sections = {"INCOME_STATEMENT": _rows("isa", years, **{str(n): 10.0 * n for n in income_titles}),
@@ -272,7 +284,7 @@ def _statement_wire(wire, *, income_titles, ratio=None):
 
 def test_statements_keep_the_newest_four_periods_under_their_labels(wire):
     """The rows arrive oldest first; ``head(4)`` of them is the symbol's 2019."""
-    _statement_wire(wire, income_titles={1: vietcap._INCOME["net_sales"]})
+    _statement_wire(wire, income_titles={1: vci._INCOME["net_sales"]})
     _take_units()
     got = VietcapSource().get_statements("x", "year")
     assert got["kind"] == "general" and got["ratio_labels"] == "source"
@@ -287,7 +299,7 @@ def test_statements_keep_the_newest_four_periods_under_their_labels(wire):
 
 
 def test_quarters_are_labelled_by_year_and_quarter(wire):
-    _statement_wire(wire, income_titles={1: vietcap._INCOME["net_sales"]})
+    _statement_wire(wire, income_titles={1: vci._INCOME["net_sales"]})
     got = VietcapSource().get_statements("X", "quarter")
     assert got["periods"] == ["2026-Q2", "2026-Q1"]
     assert got["statements"]["income"]["net_sales"] == {"2026-Q2": 20.0, "2026-Q1": 10.0}
@@ -297,7 +309,7 @@ def test_a_bank_is_read_with_the_bank_maps_and_its_ratio_series(wire):
     ratio = [{"year": "2025", "quarter": 5, "yearReport": 2025, "ratioType": "RATIO_YEAR",
               "npl": 0.011, "casaRatio": 0.35, "car": 0, "netInterestMargin": None},
              {"year": "2026", "quarter": 2, "yearReport": 2026, "ratioType": "RATIO_TTM", "npl": 0.012}]
-    _statement_wire(wire, income_titles={1: vietcap._BANK_MARKER}, ratio=ratio)
+    _statement_wire(wire, income_titles={1: vci._BANK_INCOME["net_interest_income"]}, ratio=ratio)
     _take_units()
     got = VietcapSource().get_statements("VCB", "year")
     assert got["kind"] == "bank"
@@ -306,6 +318,26 @@ def test_a_bank_is_read_with_the_bank_maps_and_its_ratio_series(wire):
     assert got["ratio_extra"] == {"NPL (%)": {"2025": 0.011, "2026-Q2": 0.012},
                                   "CASA Ratio": {"2025": 0.35}}
     assert _take_units() == 5
+
+
+def test_a_securities_firm_is_read_with_the_broker_maps_and_no_ratio_series(wire):
+    _statement_wire(wire, income_titles={1: vci._SEC_INCOME["net_sales"],
+                                         2: vci._SEC_MARKER})
+    _take_units()
+    got = VietcapSource().get_statements("SSI", "year")
+    assert got["kind"] == "securities"
+    assert got["statements"]["income"]["brokerage"]["2025"] == 140.0
+    assert got["statements"]["income"]["net_sales"]["2025"] == 70.0
+    assert got["statements"]["balance"]["equity"]["2025"] == 35.0
+    assert not any("statistics-financial" in url for url, _ in wire.calls)
+    assert _take_units() == 4
+
+
+def test_the_bank_test_wins_over_the_broker_marker():
+    labels = {vci._BANK_INCOME["net_interest_income"], vci._SEC_MARKER}
+    assert vci.statement_kind(labels.__contains__) == "bank"
+    assert vci.statement_kind({vci._SEC_MARKER}.__contains__) == "securities"
+    assert vci.statement_kind(set().__contains__) == "general"
 
 
 def test_no_such_listing_has_no_statements(wire):
@@ -324,7 +356,7 @@ def test_a_statement_answer_of_another_shape_is_not_no_statements(wire, answer):
 
 
 def test_an_outage_mid_statement_is_unreachable_not_a_partial_answer(wire):
-    _statement_wire(wire, income_titles={1: vietcap._INCOME["net_sales"]})
+    _statement_wire(wire, income_titles={1: vci._INCOME["net_sales"]})
     wire.routes.insert(0, ("section", None, 0))    # never matches; keeps the order explicit
     wire.routes.insert(0, ("/metrics", httpx.ReadTimeout("slow"), 200))
     with pytest.raises(SourceUnreachable):

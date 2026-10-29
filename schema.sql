@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS md_board (
     traded_value REAL, traded_volume REAL,  -- today's accumulated match (full VND / shares)
     vwap  REAL,                             -- session average match price (full VND)
     depth TEXT,                             -- JSON {"bids": [[price, volume], ...], "asks": ...}, best first
+    foreign_room REAL,                      -- shares foreign investors may still buy; < 0 = held over the limit
+    foreign_total_room REAL,                -- the foreign limit in shares; 0 = a 0% limit
     source TEXT NOT NULL,
     PRIMARY KEY (symbol, ts)
 );

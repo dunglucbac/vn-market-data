@@ -12,7 +12,11 @@ makes them interchangeable:
                        (prices and values full VND; traded_* = today's accumulated match),
                        plus optional ``vwap`` (session average match price) and
                        ``bids``/``asks`` (``[[price, volume], …]`` best first; None =
-                       the source has no depth, ``[]`` = an empty side).
+                       the source has no depth, ``[]`` = an empty side), and
+                       ``foreign_room``/``foreign_total_room`` (shares foreign
+                       investors may still buy, below zero when they hold more
+                       than the limit; the limit in shares, 0 = a 0% limit; None =
+                       the source does not say).
 - ``get_statements`` → ``{kind, periods, statements:{income,balance,cashflow}, ratio_extra,
                        ratio_labels}`` or ``None``. Raw, source-parsed line items — no
                        ratio math here, so the field→alias map is the only per-source

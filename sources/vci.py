@@ -52,6 +52,9 @@ _RATIO_FIELDS = {
     "CASA Ratio":          "casaRatio",
     "CAR":                 "car",
     "Net Interest Margin": "netInterestMargin",
+    # Loan-loss reserve ÷ non-performing loans. Served with the reserve's sign, so a
+    # bank covering its bad debt 2.8 times reads -2.8; the reader takes the magnitude.
+    "Loan Loss Coverage":  "loansLossReservesToNPLs",
 }
 
 #: Smallest board on which "every symbol reads zero" is evidence about the *feed*
@@ -155,8 +158,81 @@ _BANK_BALANCE = {
     "equity":       "OWNER'S EQUITY",
     "loans":        "Loans and advances to customers, net",
     "deposits":     "Deposits from customers",
+    # The gross book and what is set against it: a loan-to-deposit ratio the market
+    # quotes is gross loans over deposits plus papers issued, and the reserve (filed
+    # negative) is the numerator of loan-loss coverage. Accrued interest is booked
+    # income not yet collected. "Deposits and Loans from other credit institutions"
+    # is not mapped: two fields carry that title on the bank template (the total and
+    # one part of it), and a first-match read would pick whichever comes first.
+    "gross_loans":       "Loans and advances to customers",
+    "loan_loss_reserve": "Less: Provision for losses on loans and advances to customers",
+    "valuable_papers":   "Convertible bonds/CDs and other valuable papers issued",
+    "accrued_interest":  "Accrued interest and fee receivables",
     # Same figure under the name the bank template files it as (see _BALANCE).
     "share_capital": "Charter capital",
+}
+# Securities-firm (broker) variants: the template Vietnamese brokers file under
+# Circular 334. "Net sales" is filed under three field codes there and the first is
+# the live one; "Interests expenses" is spelled as VCI spells it. The income line
+# "Provision for losses from mortgage assets, uncollectible receivables, and loan
+# expenses" is not mapped: it carries the borrowing cost of loans too, so it is not a
+# credit loss. The balance-sheet provision is.
+_SEC_INCOME = {
+    "net_sales":         "Net sales",
+    "brokerage":         "Revenue in Brokerage services",
+    "loan_income":       "Income from loans and receivables",
+    "fvtpl_income":      "Income from financial assets recognized through profit/loss (FVTPL)",
+    "fvtpl_sell_gain":   "Income from selling financial assets FVTPL",
+    "fvtpl_reval_gain":  "FVTPL revaluation gain",
+    "fvtpl_dividend":    "Dividend, interest from FVTPL financial assets",
+    "fvtpl_loss":        "Loss from financial assets recognized through profit/loss (FVTPL)",
+    "fvtpl_sell_loss":   "Loss from selling financial assets FVTPL",
+    "fvtpl_reval_loss":  "FVTPL financial assets revaluation loss",
+    "htm_income":        "Income from held to maturity investment (HTM)",
+    "afs_income":        "Income from available for sales assets (AFS)",
+    "interest_expense":  "Interests expenses",
+    "net_profit":        "NET PROFIT/(LOSS) AFTER TAX",
+    "net_profit_parent": "Attributable to parent company",
+    "eps":               "EPS basic (VND)",
+}
+_SEC_BALANCE = {
+    "total_assets":   "TOTAL ASSETS",
+    "liabilities":    "LIABILITIES",
+    "equity":         "Owner's Equity",
+    "margin_loans":   "Loans",
+    "fvtpl":          "Financial assets at fair value through profit or loss (FVTPL)",
+    "afs":            "Available-for-sale financial assets (AFS)",
+    "htm":            "Held-to-maturity investment",
+    # Both filed negative. Overdue margin moves to receivables; the second line is the
+    # impairment of financial assets, margin loans among them (30 of 45 brokers non-zero
+    # at FY2025, one 51 → 162bn over 2023-2025).
+    "receivable_provision": "Provision for short term receivables",
+    "asset_provision":      "Provision for diminution",
+    "st_borrowings":  "Short-term borrowings",
+    "cash":           "Cash and cash equivalents",
+    "share_capital":  "Common shares",
+}
+#: The line that marks a securities firm's income statement: on every broker VCI files
+#: (45 of 45 in ICB 8777, measured 2026-10-14) and on none of the other financials
+#: tried (DCV, TIN, F88, BCG, EVF, HVA).
+_SEC_MARKER = _SEC_INCOME["brokerage"]
+
+
+def statement_kind(has_label) -> str:
+    """``bank``, ``securities`` or ``general`` from the income statement's labels;
+    ``has_label(label)`` says whether that statement files the label. The bank test
+    comes first, so a lender with a brokerage line still reads as a bank."""
+    if has_label(_BANK_INCOME["net_interest_income"]):
+        return "bank"
+    if has_label(_SEC_MARKER):
+        return "securities"
+    return "general"
+
+
+_STATEMENT_MAPS = {
+    "bank":       (_BANK_INCOME, _BANK_BALANCE),
+    "securities": (_SEC_INCOME, _SEC_BALANCE),
+    "general":    (_INCOME, _BALANCE),
 }
 
 _CAMEL_RE = re.compile(r"(?<=[a-z0-9])([A-Z])")
@@ -491,7 +567,9 @@ class VCISource(DataSource):
                 # Detected off the income statement, which is fetched first, so the
                 # ratio request — one of four quota units — is only paid when its
                 # rows will be read: nothing reads a general symbol's ratios.
-                is_bank = "Net Interest Income" in income["item_en"].tolist()
+                labels = set(income["item_en"].tolist())
+                kind = statement_kind(labels.__contains__)
+                is_bank = kind == "bank"
                 want_ratio = is_bank or self.ratio_for_general
                 ratio = self._ratio_rows(symbol, period) if want_ratio else None
         except SystemExit:
@@ -517,14 +595,14 @@ class VCISource(DataSource):
             return None
         periods = periods[:5]  # keep the LLM payload small; 5 periods shows the trend
 
-        kind = "bank" if is_bank else "general"
         if not is_bank and _BANK_BALANCE["loans"] in balance["item_en"].tolist():
             # A misread bank loses NPL/CASA/CAR silently rather than showing a wrong
             # number, so the one shape that says it happened gets a line.
             log.warning("vci: %s balance sheet carries bank loans but no Net Interest "
-                        "Income line — read as general", symbol)
-        inc = self._lines(income,  _BANK_INCOME  if is_bank else _INCOME,  periods)
-        bal = self._lines(balance, _BANK_BALANCE if is_bank else _BALANCE, periods)
+                        "Income line — read as %s", symbol, kind)
+        inc_map, bal_map = _STATEMENT_MAPS[kind]
+        inc = self._lines(income,  inc_map, periods)
+        bal = self._lines(balance, bal_map, periods)
         cf  = self._lines(cashflow, _CASHFLOW, periods)
         return {
             "kind": kind,

@@ -24,8 +24,8 @@ here. What differs is only what ``vnstock`` did to the wire format on the way th
 - Statements arrive as one row per period, oldest first, keyed by field code
   (``isa1``, ``bsa53``); the labels the line-item maps match on come from the
   per-symbol ``…/financial-statement/metrics`` call. The newest
-  :data:`_PERIOD_WINDOW` periods are kept — the window ``VCISource`` has always
-  served, which the statement archive and the LLM payload are sized to.
+  :data:`_PERIOD_WINDOW` periods are kept: four years, the window ``VCISource`` has
+  always served, and eight quarters, so a trailing year has its year-ago window.
 - ``vnai``'s ~20 calls/min cap and its ``SystemExit`` do not exist here. Vietcap's own
   limit is **not known**; requests are spaced :data:`_MIN_INTERVAL_S` apart per
   process, and a 403/418/429 is ``SourceUnavailable``.
@@ -46,10 +46,10 @@ import httpx
 from vn_market_data.sources.base import (RATIO_LABELS, DataSource, SourceUnavailable,
                                          SourceUnreachable, report_units)
 from vn_market_data.sources.http import get_capped, post_capped
-from vn_market_data.sources.vci import (_BALANCE, _BANK_BALANCE, _BANK_INCOME,
-                                        _CASHFLOW, _EVENT_CODES, _INCOME, BOOK_LEVELS,
-                                        VCISource, _blank_unpopulated_foreign, _num,
-                                        _snake)
+from vn_market_data.sources.vci import (_BANK_BALANCE, _CASHFLOW, _EVENT_CODES,
+                                        _STATEMENT_MAPS, BOOK_LEVELS, VCISource,
+                                        _blank_unpopulated_foreign, _num, _snake,
+                                        statement_kind)
 
 log = logging.getLogger(__name__)
 
@@ -78,8 +78,11 @@ _MIN_INTERVAL_S = 0.25
 #: Symbols per board request, as in ``VCISource``.
 _BOARD_BATCH = 400
 
-#: Newest periods kept per statement — the window ``VCISource`` serves.
-_PERIOD_WINDOW = 4
+#: Newest periods kept per statement. Four years is the window ``VCISource`` serves.
+#: Eight quarters is two trailing years: the endpoint answers with every period it
+#: holds either way (34 quarters for VPB, 2026-10-07), so the wider cut costs no
+#: request, and a four-quarter one leaves a trailing year with nothing to compare to.
+_PERIOD_WINDOW = {"year": 4, "quarter": 8}
 
 #: Corporate actions are asked for this far back, the reach ``vnstock`` defaults to.
 _EVENT_YEARS = 10
@@ -87,9 +90,6 @@ _EVENT_PAGE = 50
 #: Pages followed per symbol. One page is 50 DIV/ISS events, which no listing has
 #: reached in ten years; the cap only bounds a response that lies about its length.
 _EVENT_MAX_PAGES = 5
-
-#: The label that marks a bank's income statement.
-_BANK_MARKER = _BANK_INCOME["net_interest_income"]
 
 # An exchange is answered from the listing, not the group endpoint: Vietcap's ``HOSE``
 # group also carries the 24 ETFs and fund certificates trading there, and the callers
@@ -352,6 +352,10 @@ class VietcapSource(DataSource):
                 "vwap":  _num(match.get("avgMatchPrice")) or None,
                 "bids":  _book_side(book.get("bidPrices")),
                 "asks":  _book_side(book.get("askPrices")),
+                # Shares, as served. `currentRoom` goes below zero when foreign
+                # holders are over a limit that was cut (VEA: 0% since 2026-09-22).
+                "foreign_room":       _num(match.get("currentRoom")),
+                "foreign_total_room": _num(match.get("totalRoom")),
             }
         if unreadable and not out:
             # Rows, none of them readable = the shape changed under us. A caller must
@@ -461,20 +465,22 @@ class VietcapSource(DataSource):
 
         # Detected off the income statement, as in VCISource, so the ratio request is
         # only made when its rows will be read.
-        is_bank = self._field(income, titles, _BANK_MARKER) is not None
+        kind = statement_kind(lambda label: self._field(income, titles, label) is not None)
+        is_bank = kind == "bank"
         want_ratio = is_bank or self.ratio_for_general
         ratio = self._ratio_rows(symbol) if want_ratio else []
         report_units(5 if want_ratio else 4)
 
         if not is_bank and self._field(balance, titles, _BANK_BALANCE["loans"]) is not None:
             log.warning("vietcap: %s balance sheet carries bank loans but no Net Interest "
-                        "Income line — read as general", symbol)
+                        "Income line — read as %s", symbol, kind)
+        inc_map, bal_map = _STATEMENT_MAPS[kind]
         return {
-            "kind": "bank" if is_bank else "general",
+            "kind": kind,
             "periods": periods,
             "statements": {
-                "income":   self._lines(income, titles, _BANK_INCOME if is_bank else _INCOME, periods),
-                "balance":  self._lines(balance, titles, _BANK_BALANCE if is_bank else _BALANCE, periods),
+                "income":   self._lines(income, titles, inc_map, periods),
+                "balance":  self._lines(balance, titles, bal_map, periods),
                 "cashflow": self._lines(cashflow, titles, _CASHFLOW, periods),
             },
             "ratio_extra": VCISource._ratio_series_records(ratio),
@@ -499,7 +505,7 @@ class VietcapSource(DataSource):
             label = _period_label(row, period) if isinstance(row, dict) else None
             if label is not None and label not in labelled:
                 labelled[label] = row
-        newest = sorted(labelled, reverse=True)[:_PERIOD_WINDOW]
+        newest = sorted(labelled, reverse=True)[:_PERIOD_WINDOW.get(period, 4)]
         return {p: labelled[p] for p in newest}
 
     def _titles(self, symbol: str) -> dict[str, str]:

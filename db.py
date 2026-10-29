@@ -124,6 +124,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE md_board ADD COLUMN vwap REAL")
     if bcols and "depth" not in bcols:
         conn.execute("ALTER TABLE md_board ADD COLUMN depth TEXT")
+    for col in ("foreign_room", "foreign_total_room"):
+        # Foreign ownership room, in shares. Older rows stay NULL = "not read",
+        # never "no room".
+        if bcols and col not in bcols:
+            conn.execute(f"ALTER TABLE md_board ADD COLUMN {col} REAL")
 
     mcols = {r[1] for r in conn.execute("PRAGMA table_info(md_fetch_meta)")}
     if mcols and "floor" not in mcols:

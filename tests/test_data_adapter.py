@@ -623,6 +623,16 @@ def test_price_band_snaps_up_to_the_published_band(temp_db):
         assert store.price_band(conn, "NEVER_BOARDED") is None
 
 
+def test_the_board_store_keeps_foreign_room_and_none_stays_none(temp_db):
+    with closing(vmd.connect()) as conn:
+        store.insert_board(conn, {"VEA": {"foreign_room": -17609933.0, "foreign_total_room": 0.0},
+                                  "OLD": {"close": 1.0}}, "fake")
+        vea = store.newest_board(conn, "VEA")
+        assert (vea["foreign_room"], vea["foreign_total_room"]) == (-17609933.0, 0.0)
+        old = store.newest_board(conn, "OLD")
+        assert old["foreign_room"] is None and old["foreign_total_room"] is None
+
+
 def test_price_band_rejects_a_malformed_snapshot(temp_db):
     with closing(vmd.connect()) as conn:
         store.insert_board(conn, {"X": {"ceiling": 900.0, "floor": 10.0,
