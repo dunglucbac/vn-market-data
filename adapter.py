@@ -608,6 +608,18 @@ def get_trade_tape(symbol: str) -> tuple[str, dict | None]:
     return _query("get_trade_tape", symbol)
 
 
+def get_discussions(symbol: str, *, offset: int = 0, limit: int = 20) -> tuple[str, list[dict]]:
+    """One uncached page of discussions: ``(source_name, provider_native_posts)``.
+
+    Post fields depend on the source. An empty page is an answer; failures fall
+    through the source chain and propagate if no source can answer.
+    """
+    symbol = symbol.strip().upper()
+    if not symbol:
+        return "", []
+    return _query("get_discussions", symbol, offset=offset, limit=limit)
+
+
 # ── Price board ────────────────────────────────────────────────────────────────
 def get_board(symbols: list[str], *, ttl_s: float = BOARD_TTL_S,
               stale_ttl_s: float = BOARD_STALE_S) -> dict[str, dict]:

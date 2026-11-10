@@ -93,3 +93,23 @@ def test_posts_failure_is_not_empty(monkeypatch, status, body):
 def test_posts_invalid_input(call):
     with pytest.raises(ValueError):
         call(fireant.FireAntSource())
+
+
+def test_discussions_adapter_uses_source_chain_and_preserves_page():
+    import vn_market_data as vmd
+    from vn_market_data.sources.base import DataSource
+
+    class Unsupported(DataSource):
+        name = 'unsupported'
+
+    class DiscussionSource(DataSource):
+        name = 'test'
+        def get_discussions(self, symbol, *, offset=0, limit=20):
+            assert (symbol, offset, limit) == ('MSR', 20, 10)
+            return [{'postID': 42}]
+
+    vmd.set_sources([Unsupported(), DiscussionSource()])
+    try:
+        assert vmd.get_discussions(' msr ', offset=20, limit=10) == ('test', [{'postID': 42}])
+    finally:
+        vmd.set_sources(None)

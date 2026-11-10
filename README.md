@@ -100,6 +100,7 @@ get_ohlcv(symbol, lookback_days=730, *, is_index=False, ttl_s=...) -> list[dict]
 get_index_live(symbol) -> dict | None            # in-progress index candle; uncached
 get_market_turnover(index="VNINDEX", lookback_days=420) -> list[dict]
 get_foreign_history(symbol, start, end=None) -> (source, list[dict])   # settled khối ngoại; uncached
+get_discussions(symbol, *, offset=0, limit=20) -> (source, list[dict])  # uncached, source-native posts
 get_trade_tape(symbol) -> (source, dict | None)  # today's matched prints + initiating side (KBS); uncached, one session only
 get_board(symbols, *, ttl_s=..., stale_ttl_s=...) -> dict[str, dict]
 get_statements(symbol, period="year", *, ttl_s=...) -> dict | None
@@ -282,8 +283,16 @@ MIT. See [LICENSE](LICENSE).
 
 ### FireAnt news and community discussions
 
-Use the FireAnt source directly to read one page of ticker-related news or community
-posts, and replies to a post:
+Read one page of discussions through the source chain. The returned source name
+identifies the provider-specific post format:
+
+```python
+from vn_market_data import get_discussions
+
+source, posts = get_discussions("MSR", limit=20)
+```
+
+Use FireAnt directly for news, discussions, or replies to a post:
 
 ```python
 from vn_market_data import FireAntSource

@@ -60,6 +60,9 @@ makes them interchangeable:
                        both sides of a foreign-to-foreign put-through. A separate
                        capability on purpose, so a deep-history source can never
                        become the settle job's fallback (see ``vndirect``).
+- ``get_discussions`` → one page of provider-native post dictionaries (currently
+                       FireAnt); ``[]`` = no posts. Callers must use the source name
+                       to interpret fields.
 - ``get_trade_tape`` → one symbol's matched prints for the **current or last closed
                        session** ``{symbol, date, trades: [{date, time, price, volume,
                        side, accumulated_volume}]}``, oldest-first, price full VND,
@@ -159,6 +162,9 @@ class DataSource:
 
     def get_foreign_archive(self, symbol: str, start: str, end: str) -> list[dict]:
         raise NotSupported("get_foreign_archive")
+
+    def get_discussions(self, symbol: str, *, offset: int = 0, limit: int = 20) -> list[dict]:
+        raise NotSupported("get_discussions")
 
     def get_trade_tape(self, symbol: str) -> dict | None:
         raise NotSupported("get_trade_tape")

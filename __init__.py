@@ -59,6 +59,7 @@ from vn_market_data.adapter import (
     get_board,
     newest_board,
     get_events,
+    get_discussions,
     get_index_constituents,
     get_index_live,
     get_market_turnover,
@@ -118,6 +119,7 @@ __all__ = [
     "get_statement_history",
     "banked_periods",
     "get_events",
+    "get_discussions",
     "get_index_constituents",
     # repair
     "adjudicate_ohlcv",
