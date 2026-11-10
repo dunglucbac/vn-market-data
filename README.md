@@ -13,16 +13,14 @@ board   = get_board(["HPG", "VNM"])             # foreign flow, limit bands, tra
 No setup. The first call creates a SQLite file (`./vn_market_data.db`) and backfills it;
 every call after that is served from disk and only the new session's tail is fetched.
 
-Not on PyPI — install from the repository, at a tag:
+Not on PyPI — install the FireAnt branch from your repository:
 
 ```
-pip install "vn-market-data @ git+https://github.com/trangcm/vn-market-data@v0.4.0"
+pip install "vn-market-data @ git+https://github.com/dunglucbac/vn-market-data.git@add-fireant-source"
 ```
 
-Pin the tag. Without `@v0.4.0` pip takes whatever the default branch happens to be at
-that moment, so the same command means something different tomorrow and an install
-cannot be reproduced. Releases never move a tag once it is pushed, so a pinned install
-is the one that stays what you tested against.
+This installs the latest commit on `add-fireant-source`. For reproducible installs, replace
+the branch name with a specific commit hash or a release tag after one is published.
 
 The base install is the whole default chain — DNSE (OHLCV), Vietcap (price board,
 statements, corporate actions, the OHLCV fallback), VNDirect (turnover), CafeF (settled
@@ -276,11 +274,7 @@ If something is wrong, `diagnose_sources.py` is the first thing to run and the m
 useful thing to paste into an issue: it fetches the same symbol from every source in the
 chain and prints where they disagree.
 
-Patches are welcome, with one caveat worth knowing before you write one: this repository
-is a **one-way mirror** of a directory in a larger application, so a pull request opened
-here cannot be merged here — the change gets applied upstream with you credited, and
-ships in the next release. [`CONTRIBUTING.md`](CONTRIBUTING.md) explains what to do
-instead.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for development and contribution guidance.
 
 ## License
 

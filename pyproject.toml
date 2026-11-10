@@ -39,14 +39,11 @@ classifiers = [
 # httpx, and SQLite is in the standard library. Nothing here pulls pandas.
 dependencies = ["httpx>=0.24"]
 
-# The repository these point at is the published one produced by the subtree split — it
-# is the only checkout a reader can act on. If the package ever moves accounts, these
-# three and the README's install line have to move together; the release script only
-# fills an unset placeholder, it will not rewrite a URL that is already here.
+# Keep these links in step with the repository in the README install command.
 [project.urls]
-Homepage = "https://github.com/trangcm/vn-market-data"
-Source = "https://github.com/trangcm/vn-market-data"
-Issues = "https://github.com/trangcm/vn-market-data/issues"
+Homepage = "https://github.com/dunglucbac/vn-market-data"
+Source = "https://github.com/dunglucbac/vn-market-data"
+Issues = "https://github.com/dunglucbac/vn-market-data/issues"
 
 [project.optional-dependencies]
 # VCISource — the vnstock-backed reader of the Vietcap endpoints the default chain's
