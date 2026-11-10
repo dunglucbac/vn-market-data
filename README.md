@@ -13,14 +13,14 @@ board   = get_board(["HPG", "VNM"])             # foreign flow, limit bands, tra
 No setup. The first call creates a SQLite file (`./vn_market_data.db`) and backfills it;
 every call after that is served from disk and only the new session's tail is fetched.
 
-Not on PyPI — install the FireAnt branch from your repository:
+Not on PyPI — install from the repository’s default branch:
 
 ```
-pip install "vn-market-data @ git+https://github.com/dunglucbac/vn-market-data.git@add-fireant-source"
+pip install "vn-market-data @ git+https://github.com/dunglucbac/vn-market-data.git"
 ```
 
-This installs the latest commit on `add-fireant-source`. For reproducible installs, replace
-the branch name with a specific commit hash or a release tag after one is published.
+This installs the latest commit on the default branch. For reproducible installs, append
+a commit hash or a release tag, for example `@0.5.0`.
 
 The base install is the whole default chain — DNSE (OHLCV), Vietcap (price board,
 statements, corporate actions, the OHLCV fallback), VNDirect (turnover), CafeF (settled
