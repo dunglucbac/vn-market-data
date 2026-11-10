@@ -262,6 +262,7 @@ Run it yourself: `python -m vn_market_data.benchmarks.bench_store` (writes JSON 
 pip install -e ".[dev]"
 pytest tests/ -q                  # offline: fake sources, temp SQLite, no network
 python examples/quickstart.py     # hits the real endpoints
+python examples/fireant.py MSR    # fetch FireAnt news and discussions into SQLite
 python examples/diagnose_sources.py HPG   # which source answers, and do they agree?
 python -m vn_market_data.benchmarks.bench_store   # timings above, on your machine
 ```
@@ -299,6 +300,10 @@ posts = fireant.get_discussions("FPT", limit=20)
 replies = fireant.get_replies(posts[0]["postID"]) if posts else []
 next_page = fireant.get_discussions("FPT", offset=20)
 ```
+
+Run `python examples/fireant.py MSR` to save the first page of each category to
+`fireant_posts.db`; pass a second argument to choose another database path. Re-running
+the example updates matching posts.
 
 Each call obtains an anonymous token and returns FireAnt's original post objects,
 including fields such as `postID`, `title`, `description`, `originalContent`, `date`,
