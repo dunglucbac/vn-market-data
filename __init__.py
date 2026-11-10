@@ -59,6 +59,7 @@ from vn_market_data.adapter import (
     get_board,
     newest_board,
     get_events,
+    get_discussions,
     get_index_constituents,
     get_index_live,
     get_market_turnover,
@@ -96,6 +97,7 @@ from vn_market_data.market_hours import (
 )
 from vn_market_data.sources.base import DataSource, NotSupported, SourceUnavailable
 from vn_market_data.sources.dnse import DNSESource
+from vn_market_data.sources.fireant import FireAntSource
 from vn_market_data.sources.registry import build_sources
 from vn_market_data.sources.vci import VCISource, vnstock_installed
 from vn_market_data.sources.vietcap import VietcapSource
@@ -104,7 +106,7 @@ from vn_market_data.sources.vndirect import VNDirectSource
 # Kept in step with pyproject.toml by the release script, which is the only thing that
 # knows what version is being cut. It drifted three releases behind while the release
 # repinned the README and nothing repinned this.
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
     # reads
@@ -117,6 +119,7 @@ __all__ = [
     "get_statement_history",
     "banked_periods",
     "get_events",
+    "get_discussions",
     "get_index_constituents",
     # repair
     "adjudicate_ohlcv",
@@ -136,6 +139,7 @@ __all__ = [
     "record_source_calls",
     "SourceCall",
     "DNSESource",
+    "FireAntSource",
     "VCISource",
     "VietcapSource",
     "VNDirectSource",

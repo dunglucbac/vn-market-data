@@ -13,20 +13,18 @@ board   = get_board(["HPG", "VNM"])             # foreign flow, limit bands, tra
 No setup. The first call creates a SQLite file (`./vn_market_data.db`) and backfills it;
 every call after that is served from disk and only the new session's tail is fetched.
 
-Not on PyPI — install from the repository, at a tag:
+Not on PyPI — install the FireAnt branch from your repository:
 
 ```
-pip install "vn-market-data @ git+https://github.com/trangcm/vn-market-data@v0.4.0"
+pip install "vn-market-data @ git+https://github.com/dunglucbac/vn-market-data.git@add-fireant-source"
 ```
 
-Pin the tag. Without `@v0.4.0` pip takes whatever the default branch happens to be at
-that moment, so the same command means something different tomorrow and an install
-cannot be reproduced. Releases never move a tag once it is pushed, so a pinned install
-is the one that stays what you tested against.
+This installs the latest commit on `add-fireant-source`. For reproducible installs, replace
+the branch name with a specific commit hash or a release tag after one is published.
 
 The base install is the whole default chain — DNSE (OHLCV), Vietcap (price board,
 statements, corporate actions, the OHLCV fallback), VNDirect (turnover), CafeF (settled
-foreign flow) — and is pure `httpx`. The `vci` extra adds only `VCISource`, an opt-in
+foreign flow), KBS (trade tape), and FireAnt (turnover fallback) — and is pure `httpx`. The `vci` extra adds only `VCISource`, an opt-in
 reader of the same Vietcap endpoints through `vnstock` (and therefore pandas); nothing
 in the default chain uses it.
 
@@ -102,6 +100,7 @@ get_ohlcv(symbol, lookback_days=730, *, is_index=False, ttl_s=...) -> list[dict]
 get_index_live(symbol) -> dict | None            # in-progress index candle; uncached
 get_market_turnover(index="VNINDEX", lookback_days=420) -> list[dict]
 get_foreign_history(symbol, start, end=None) -> (source, list[dict])   # settled khối ngoại; uncached
+get_discussions(symbol, *, offset=0, limit=20) -> (source, list[dict])  # uncached, source-native posts
 get_trade_tape(symbol) -> (source, dict | None)  # today's matched prints + initiating side (KBS); uncached, one session only
 get_board(symbols, *, ttl_s=..., stale_ttl_s=...) -> dict[str, dict]
 get_statements(symbol, period="year", *, ttl_s=...) -> dict | None
@@ -171,7 +170,8 @@ the total.
 | `DNSESource` | OHLCV, live index | DNSE Entrade. Open, no auth, ~30 req/s. Head of the chain. |
 | `VietcapSource` | board, statements, events, OHLCV, index members | Vietcap's public endpoints over plain HTTP. No auth; rate limit not published, so requests are spaced 0.25 s apart and a 403/418/429 is a refusal. Also reads the listing, a company profile and the ICB sector map. |
 | `VCISource` | board, statements, events, OHLCV | The same endpoints via `vnstock`. **Not in the default chain** — opt in with `set_sources`; needs the `[vci]` extra. ~20 req/min. |
-| `VNDirectSource` | market turnover | The only source for matched + put-through. |
+| `VNDirectSource` | market turnover | Matched + put-through. |
+| `FireAntSource` | market turnover | Fallback for VNDirect; obtains an anonymous FireAnt token for each fetch. |
 | `CafeFSource` | foreign history | Settled per-session foreign buy/sell, ~63 sessions deep. The board only ever shows the live accumulator. Pages ride one keep-alive connection: its edge drops new connections under a crawl. |
 
 The chain is tried head-first *per capability*, so a source implements only what it can
@@ -261,6 +261,7 @@ Run it yourself: `python -m vn_market_data.benchmarks.bench_store` (writes JSON 
 pip install -e ".[dev]"
 pytest tests/ -q                  # offline: fake sources, temp SQLite, no network
 python examples/quickstart.py     # hits the real endpoints
+python examples/fireant.py MSR    # fetch FireAnt news and discussions into SQLite
 python examples/diagnose_sources.py HPG   # which source answers, and do they agree?
 python -m vn_market_data.benchmarks.bench_store   # timings above, on your machine
 ```
@@ -274,12 +275,42 @@ If something is wrong, `diagnose_sources.py` is the first thing to run and the m
 useful thing to paste into an issue: it fetches the same symbol from every source in the
 chain and prints where they disagree.
 
-Patches are welcome, with one caveat worth knowing before you write one: this repository
-is a **one-way mirror** of a directory in a larger application, so a pull request opened
-here cannot be merged here — the change gets applied upstream with you credited, and
-ships in the next release. [`CONTRIBUTING.md`](CONTRIBUTING.md) explains what to do
-instead.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for development and contribution guidance.
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+### FireAnt news and community discussions
+
+Read one page of discussions through the source chain. The returned source name
+identifies the provider-specific post format:
+
+```python
+from vn_market_data import get_discussions
+
+source, posts = get_discussions("MSR", limit=20)
+```
+
+Use FireAnt directly for news, discussions, or replies to a post:
+
+```python
+from vn_market_data import FireAntSource
+
+fireant = FireAntSource()
+news = fireant.get_news("FPT", limit=20)
+posts = fireant.get_discussions("FPT", limit=20)
+replies = fireant.get_replies(posts[0]["postID"]) if posts else []
+next_page = fireant.get_discussions("FPT", offset=20)
+```
+
+Run `python examples/fireant.py MSR` to save the first page of each category to
+`fireant_posts.db`; pass a second argument to choose another database path. Re-running
+the example updates matching posts.
+
+Each call obtains an anonymous token and returns FireAnt's original post objects,
+including fields such as `postID`, `title`, `description`, `originalContent`, `date`,
+`user`, `postSource`, `totalLikes`, and `totalReplies` when supplied. `offset` starts at
+zero and `limit` is 1–20; a short page indicates the end. Results are not cached, and
+access failures raise `SourceUnavailable`. News may be sourced from third parties; the
+availability and completeness of content depend on FireAnt.

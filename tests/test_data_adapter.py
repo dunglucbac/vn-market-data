@@ -26,12 +26,12 @@ from vn_market_data.sources.registry import build_sources
 
 # ── DA-U-02: registry (ordered chain; TCBS rejected) ─────────────────────────
 
-def test_registry_is_dnse_then_vietcap_then_vndirect_then_cafef_then_kbs():
+def test_registry_source_order():
     names = [s.name for s in build_sources()]
     # OHLCV primary, board, market turnover, settled foreign flow, trade tape — each of
     # the last four answers one capability nothing before it has, so order only matters
     # for the capabilities they share.
-    assert names == ["dnse", "vietcap", "vndirect", "cafef", "kbs"]
+    assert names == ["dnse", "vietcap", "vndirect", "cafef", "kbs", "fireant"]
     assert "tcbs" not in names          # TCBS public API is dead (rejected)
 
 
@@ -114,7 +114,7 @@ def test_set_sources_none_restores_the_builtin_chain(restore_sources):
     vmd.set_sources([_Src("only", ohlcv=[])])
     assert [s.name for s in vmd.get_sources()] == ["only"]
     vmd.set_sources(None)
-    assert [s.name for s in vmd.get_sources()] == ["dnse", "vietcap", "vndirect", "cafef", "kbs"]
+    assert [s.name for s in vmd.get_sources()] == ["dnse", "vietcap", "vndirect", "cafef", "kbs", "fireant"]
 
 
 # ── DA-U-03: source contract ─────────────────────────────────────────────────
