@@ -26,7 +26,7 @@ is the one that stays what you tested against.
 
 The base install is the whole default chain — DNSE (OHLCV), Vietcap (price board,
 statements, corporate actions, the OHLCV fallback), VNDirect (turnover), CafeF (settled
-foreign flow) — and is pure `httpx`. The `vci` extra adds only `VCISource`, an opt-in
+foreign flow), KBS (trade tape), and FireAnt (turnover fallback) — and is pure `httpx`. The `vci` extra adds only `VCISource`, an opt-in
 reader of the same Vietcap endpoints through `vnstock` (and therefore pandas); nothing
 in the default chain uses it.
 
@@ -171,7 +171,8 @@ the total.
 | `DNSESource` | OHLCV, live index | DNSE Entrade. Open, no auth, ~30 req/s. Head of the chain. |
 | `VietcapSource` | board, statements, events, OHLCV, index members | Vietcap's public endpoints over plain HTTP. No auth; rate limit not published, so requests are spaced 0.25 s apart and a 403/418/429 is a refusal. Also reads the listing, a company profile and the ICB sector map. |
 | `VCISource` | board, statements, events, OHLCV | The same endpoints via `vnstock`. **Not in the default chain** — opt in with `set_sources`; needs the `[vci]` extra. ~20 req/min. |
-| `VNDirectSource` | market turnover | The only source for matched + put-through. |
+| `VNDirectSource` | market turnover | Matched + put-through. |
+| `FireAntSource` | market turnover | Fallback for VNDirect; obtains an anonymous FireAnt token for each fetch. |
 | `CafeFSource` | foreign history | Settled per-session foreign buy/sell, ~63 sessions deep. The board only ever shows the live accumulator. Pages ride one keep-alive connection: its edge drops new connections under a crawl. |
 
 The chain is tried head-first *per capability*, so a source implements only what it can
@@ -283,3 +284,25 @@ instead.
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+### FireAnt news and community discussions
+
+Use the FireAnt source directly to read one page of ticker-related news or community
+posts, and replies to a post:
+
+```python
+from vn_market_data import FireAntSource
+
+fireant = FireAntSource()
+news = fireant.get_news("FPT", limit=20)
+posts = fireant.get_discussions("FPT", limit=20)
+replies = fireant.get_replies(posts[0]["postID"]) if posts else []
+next_page = fireant.get_discussions("FPT", offset=20)
+```
+
+Each call obtains an anonymous token and returns FireAnt's original post objects,
+including fields such as `postID`, `title`, `description`, `originalContent`, `date`,
+`user`, `postSource`, `totalLikes`, and `totalReplies` when supplied. `offset` starts at
+zero and `limit` is 1–20; a short page indicates the end. Results are not cached, and
+access failures raise `SourceUnavailable`. News may be sourced from third parties; the
+availability and completeness of content depend on FireAnt.

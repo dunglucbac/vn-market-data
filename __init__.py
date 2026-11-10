@@ -96,6 +96,7 @@ from vn_market_data.market_hours import (
 )
 from vn_market_data.sources.base import DataSource, NotSupported, SourceUnavailable
 from vn_market_data.sources.dnse import DNSESource
+from vn_market_data.sources.fireant import FireAntSource
 from vn_market_data.sources.registry import build_sources
 from vn_market_data.sources.vci import VCISource, vnstock_installed
 from vn_market_data.sources.vietcap import VietcapSource
@@ -136,6 +137,7 @@ __all__ = [
     "record_source_calls",
     "SourceCall",
     "DNSESource",
+    "FireAntSource",
     "VCISource",
     "VietcapSource",
     "VNDirectSource",
