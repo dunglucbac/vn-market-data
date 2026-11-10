@@ -105,7 +105,7 @@ from vn_market_data.sources.vndirect import VNDirectSource
 # Kept in step with pyproject.toml by the release script, which is the only thing that
 # knows what version is being cut. It drifted three releases behind while the release
 # repinned the README and nothing repinned this.
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
     # reads
