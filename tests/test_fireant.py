@@ -77,6 +77,17 @@ def test_replies_and_empty_page(monkeypatch):
     assert calls[0].endswith('/posts/42/replies')
 
 
+def test_discussions_exclude_posts_tagged_with_more_than_three_symbols(monkeypatch):
+    monkeypatch.setattr(fireant, 'post_capped', lambda *a, **k: (200, b'{"accessToken":"secret"}'))
+    posts = [{'postID': n, 'taggedSymbols': [{'symbol': str(i)} for i in range(n)]}
+             for n in (1, 3, 4)] + [{'postID': 5}, {'postID': 6, 'taggedSymbols': None}]
+    monkeypatch.setattr(fireant, 'get_capped', lambda *a, **k: (200, json.dumps(posts).encode()))
+    source = fireant.FireAntSource()
+    assert [p['postID'] for p in source.get_discussions('FPT')] == [1, 3, 5, 6]
+    assert source.get_news('FPT') == posts
+    assert source.get_replies(42) == posts
+
+
 @pytest.mark.parametrize('status,body', [(401, b''), (200, b'{}'), (200, b'bad'),
                                          (200, b'[{"title":"missing id"}]')])
 def test_posts_failure_is_not_empty(monkeypatch, status, body):
