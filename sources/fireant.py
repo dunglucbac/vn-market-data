@@ -91,8 +91,9 @@ class FireAntSource(DataSource):
         return self._symbol_posts(symbol, 1, offset, limit)
 
     def get_discussions(self, symbol: str, *, offset: int = 0, limit: int = 20) -> list[dict]:
-        """One page of FireAnt community posts about a symbol."""
-        return self._symbol_posts(symbol, 0, offset, limit)
+        """One provider page of community posts, excluding those with over three tags."""
+        posts = self._symbol_posts(symbol, 0, offset, limit)
+        return [post for post in posts if len(post.get("taggedSymbols") or []) <= 3]
 
     def get_replies(self, post_id: int, *, offset: int = 0, limit: int = 20) -> list[dict]:
         """One page of replies to a FireAnt post."""

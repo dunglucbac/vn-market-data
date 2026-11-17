@@ -311,6 +311,8 @@ the example updates matching posts.
 Each call obtains an anonymous token and returns FireAnt's original post objects,
 including fields such as `postID`, `title`, `description`, `originalContent`, `date`,
 `user`, `postSource`, `totalLikes`, and `totalReplies` when supplied. `offset` starts at
-zero and `limit` is 1–20; a short page indicates the end. Results are not cached, and
+zero and `limit` is 1–20. Discussions exclude posts tagged with more than three
+symbols, so a short or empty discussion page does not necessarily indicate the end;
+offsets refer to the unfiltered provider pages. Results are not cached, and
 access failures raise `SourceUnavailable`. News may be sourced from third parties; the
 availability and completeness of content depend on FireAnt.
